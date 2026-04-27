@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+
+*.log
+.DS_Store
+
+# Caddy certificate/config data should live in Docker volumes, not git.
+caddy-data/
+caddy-config/

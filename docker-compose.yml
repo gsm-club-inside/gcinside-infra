@@ -1,0 +1,201 @@
+name: gcinside
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    ports:
+      - "${HTTP_HOST_PORT:-80}:80"
+      - "${HTTPS_HOST_PORT:-443}:443"
+      - "${HTTPS_HOST_PORT:-443}:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_started
+    networks:
+      - gcinside-private
+
+  app:
+    build:
+      context: ../gcinside-app
+      dockerfile: Dockerfile
+    image: gcinside/app:${GCINSIDE_IMAGE_TAG:-local}
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DIRECT_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_SSL: ${DATABASE_SSL:-false}
+      REDIS_URL: redis://redis:6379/0
+      QUEUE_URL: nats://queue:4222
+      OBJECT_STORAGE_ENDPOINT: http://object-storage:9000
+      AI_INFERENCE_URL: http://ai-inference:8081
+    ports:
+      - "127.0.0.1:${APP_HOST_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      queue:
+        condition: service_started
+      object-storage:
+        condition: service_started
+      ai-inference:
+        condition: service_healthy
+    networks:
+      - gcinside-private
+
+  ai-inference:
+    build:
+      context: ../gcinside-ai-inference
+      dockerfile: Dockerfile
+    image: gcinside/ai-inference:${GCINSIDE_IMAGE_TAG:-local}
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      PORT: 8081
+      MODEL_VERSION: ${AI_MODEL_VERSION:-mock-risk-v1}
+      OBJECT_STORAGE_ENDPOINT: http://object-storage:9000
+    expose:
+      - "8081"
+    healthcheck:
+      test: ["CMD-SHELL", "python - <<'PY'\nimport urllib.request\nurllib.request.urlopen('http://127.0.0.1:8081/health', timeout=3)\nPY"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    depends_on:
+      object-storage:
+        condition: service_started
+    networks:
+      - gcinside-private
+
+  abuse-worker:
+    build:
+      context: ../gcinside-abuse-worker
+      dockerfile: Dockerfile
+    image: gcinside/abuse-worker:${GCINSIDE_IMAGE_TAG:-local}
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      QUEUE_URL: memory://
+      OBJECT_STORAGE_ENDPOINT: http://object-storage:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      queue:
+        condition: service_started
+      object-storage:
+        condition: service_started
+    networks:
+      - gcinside-private
+
+  ml-pipeline:
+    build:
+      context: ../gcinside-ml-pipeline
+      dockerfile: Dockerfile
+    image: gcinside/ml-pipeline:${GCINSIDE_IMAGE_TAG:-local}
+    restart: "no"
+    profiles:
+      - jobs
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      OBJECT_STORAGE_ENDPOINT: http://object-storage:9000
+      MODEL_REGISTRY_URI: s3://gcinside-models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      object-storage:
+        condition: service_started
+    networks:
+      - gcinside-private
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - gcinside-private
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - gcinside-private
+
+  queue:
+    image: nats:2-alpine
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      - "127.0.0.1:${NATS_HOST_PORT:-4222}:4222"
+      - "127.0.0.1:${NATS_MONITOR_HOST_PORT:-8222}:8222"
+    volumes:
+      - nats-data:/data
+    networks:
+      - gcinside-private
+
+  object-storage:
+    image: minio/minio:RELEASE.2021-06-17T00-10-46Z
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:${MINIO_API_HOST_PORT:-9000}:9000"
+    volumes:
+      - minio-data:/data
+    networks:
+      - gcinside-private
+
+volumes:
+  caddy-data:
+  caddy-config:
+  postgres-data:
+  redis-data:
+  nats-data:
+  minio-data:
+
+networks:
+  gcinside-private:
+    driver: bridge
