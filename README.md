@@ -41,12 +41,19 @@ Edit `.env` and replace every `CHANGE_ME` value.
 Set these values before starting the stack:
 
 ```bash
-GCINSIDE_DOMAIN=your-domain.com
+GCINSIDE_DOMAIN=gcinside.zaewc.site
 ACME_EMAIL=admin@your-domain.com
-NEXTAUTH_URL=https://your-domain.com
+HTTP_BIND_ADDR=127.0.0.1
+HTTP_HOST_PORT=8080
+HTTPS_BIND_ADDR=0.0.0.0
+HTTPS_HOST_PORT=25128
+NEXTAUTH_URL=https://gcinside.zaewc.site:25128
+OAUTH_REDIRECT_URI=https://gcinside.zaewc.site:25128/api/auth/callback
+APP_BASE_URL=https://gcinside.zaewc.site:25128
+SESSION_COOKIE_SECURE=true
 ```
 
-Your domain must already have an `A` or `AAAA` record pointing to the Linux server. Ports `80` and `443` must be open in the server firewall/security group so Caddy can issue and renew certificates.
+Your domain must already have an `A` or `AAAA` record pointing to the Linux server. If public ports `80` and `443` are unavailable, bind HTTPS to an allowed public port such as `25128` and use that port in every public app URL and OAuth redirect URL. A trusted certificate still needs DNS validation because ACME HTTP/TLS challenges require the standard `80`/`443` ports.
 
 Run a quick preflight check:
 
@@ -71,7 +78,7 @@ docker compose logs -f app
 The app should be available on:
 
 ```text
-https://your-domain.com
+https://gcinside.zaewc.site:25128
 ```
 
 The direct app port is bound to `127.0.0.1:${APP_HOST_PORT:-3000}` for local debugging only.
@@ -92,7 +99,7 @@ docker compose --profile jobs run --rm ml-pipeline python -m gcinside_ml_pipelin
 
 ## Network Exposure
 
-Only Caddy's `80` and `443` ports are publicly bound by default.
+Only Caddy is publicly bound by default. When standard web ports are unavailable, set `HTTP_BIND_ADDR=127.0.0.1`, `HTTP_HOST_PORT=8080`, and `HTTPS_HOST_PORT=25128` so plaintext HTTP stays local and HTTPS is exposed on the allowed public port.
 
 The app debug port, PostgreSQL, Redis, NATS, and MinIO ports are bound to `127.0.0.1` for local server access only. Service-to-service traffic uses the private Docker network.
 
