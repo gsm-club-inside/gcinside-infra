@@ -2,7 +2,7 @@
 	email {$ACME_EMAIL}
 }
 
-http://{$GCINSIDE_DOMAIN} {
+(app_proxy) {
 	encode zstd gzip
 
 	header {
@@ -24,4 +24,12 @@ http://{$GCINSIDE_DOMAIN} {
 		output stdout
 		format console
 	}
+}
+
+http://ssh.gsmsv.site {
+	import app_proxy
+}
+
+{$GCINSIDE_DOMAIN} {
+	import app_proxy
 }
