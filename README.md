@@ -53,7 +53,7 @@ APP_BASE_URL=https://gcinside.zaewc.site:25128
 SESSION_COOKIE_SECURE=true
 ```
 
-Your domain must already have an `A` or `AAAA` record pointing to the Linux server. If public ports `80` and `443` are unavailable, bind HTTPS to an allowed public port such as `25128` and use that port in every public app URL and OAuth redirect URL. A trusted certificate still needs DNS validation because ACME HTTP/TLS challenges require the standard `80`/`443` ports.
+Your domain must already have an `A` or `AAAA` record pointing to the Linux server. If public ports `80` and `443` are unavailable, bind HTTPS to an allowed public port such as `25128` and use that port in every public app URL and OAuth redirect URL. Issue the certificate with DNS validation and place it under `/etc/letsencrypt/live/${GCINSIDE_DOMAIN}` because ACME HTTP/TLS challenges require the standard `80`/`443` ports.
 
 Run a quick preflight check:
 

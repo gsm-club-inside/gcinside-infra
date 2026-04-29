@@ -12,6 +12,7 @@ services:
       - "${HTTPS_BIND_ADDR:-0.0.0.0}:${HTTPS_HOST_PORT:-443}:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
