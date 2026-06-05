@@ -26,12 +26,6 @@
 	}
 }
 
-http://ssh.gsmsv.site {
-	import app_proxy
-}
-
-{$GCINSIDE_DOMAIN} {
-	tls /etc/letsencrypt/live/{$GCINSIDE_DOMAIN}/fullchain.pem /etc/letsencrypt/live/{$GCINSIDE_DOMAIN}/privkey.pem
-
+{$GCINSIDE_PUBLIC_SITE:http://ssh.gsmsv.site} {
 	import app_proxy
 }

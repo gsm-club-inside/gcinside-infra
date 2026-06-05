@@ -42,18 +42,19 @@ Set these values before starting the stack:
 
 ```bash
 GCINSIDE_DOMAIN=gcinside.zaewc.site
+GCINSIDE_PUBLIC_SITE=http://gcinside.zaewc.site
 ACME_EMAIL=admin@your-domain.com
-HTTP_BIND_ADDR=127.0.0.1
-HTTP_HOST_PORT=8080
-HTTPS_BIND_ADDR=0.0.0.0
-HTTPS_HOST_PORT=25128
-NEXTAUTH_URL=https://gcinside.zaewc.site:25128
-OAUTH_REDIRECT_URI=https://gcinside.zaewc.site:25128/api/auth/callback
-APP_BASE_URL=https://gcinside.zaewc.site:25128
+HTTP_BIND_ADDR=0.0.0.0
+HTTP_HOST_PORT=27128
+HTTPS_BIND_ADDR=127.0.0.1
+HTTPS_HOST_PORT=8443
+NEXTAUTH_URL=https://gcinside.zaewc.site
+OAUTH_REDIRECT_URI=https://gcinside.zaewc.site/api/auth/callback
+APP_BASE_URL=https://gcinside.zaewc.site
 SESSION_COOKIE_SECURE=true
 ```
 
-Your domain must already have an `A` or `AAAA` record pointing to the Linux server. If public ports `80` and `443` are unavailable, bind HTTPS to an allowed public port such as `25128` and use that port in every public app URL and OAuth redirect URL. Issue the certificate with DNS validation and place it under `/etc/letsencrypt/live/${GCINSIDE_DOMAIN}` because ACME HTTP/TLS challenges require the standard `80`/`443` ports.
+Your domain must already have an `A` or `AAAA` record pointing to the Linux server. If public ports `80` and `443` are unavailable, bind HTTP to the externally forwarded app port such as `27128` and use that port in every public app URL and OAuth redirect URL.
 
 Run a quick preflight check:
 
@@ -78,7 +79,7 @@ docker compose logs -f app
 The app should be available on:
 
 ```text
-https://gcinside.zaewc.site:25128
+https://gcinside.zaewc.site
 ```
 
 The direct app port is bound to `127.0.0.1:${APP_HOST_PORT:-3000}` for local debugging only.
@@ -99,11 +100,11 @@ docker compose --profile jobs run --rm ml-pipeline python -m gcinside_ml_pipelin
 
 ## Network Exposure
 
-Only Caddy is publicly bound by default. When standard web ports are unavailable, set `HTTP_BIND_ADDR=127.0.0.1`, `HTTP_HOST_PORT=8080`, and `HTTPS_HOST_PORT=25128` so plaintext HTTP stays local and HTTPS is exposed on the allowed public port.
+Only Caddy is publicly bound by default. When standard web ports are unavailable, set `HTTP_BIND_ADDR=0.0.0.0` and `HTTP_HOST_PORT=27128` so Caddy exposes the app on the forwarded public HTTP port.
 
 The app debug port, PostgreSQL, Redis, NATS, and MinIO ports are bound to `127.0.0.1` for local server access only. Service-to-service traffic uses the private Docker network.
 
-Caddy stores issued certificates in the `caddy-data` Docker volume and renews them automatically.
+Caddy stores issued certificates in the `caddy-data` Docker volume when TLS is enabled.
 
 ## Common Commands
 
